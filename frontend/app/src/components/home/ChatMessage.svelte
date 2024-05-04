@@ -59,6 +59,7 @@
     import { i18nKey } from "../../i18n/i18n";
     import WithRole from "./profile/WithRole.svelte";
     import RoleIcon from "./profile/RoleIcon.svelte";
+    import Streak from "./profile/Streak.svelte";
 
     const client = getContext<OpenChat>("client");
     const dispatch = createEventDispatcher();
@@ -514,6 +515,9 @@
                                             role={chatRole} />
                                     </WithRole>
                                 {/if}
+                                <Streak streak="three" />
+                                <Streak streak="seven" />
+                                <Streak streak="thirty" />
                             </Link>
                             {#if senderTyping}
                                 <span class="typing">
