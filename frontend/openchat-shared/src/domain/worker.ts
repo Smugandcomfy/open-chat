@@ -68,6 +68,8 @@ import type {
     VideoCallPresence,
     SetVideoCallPresenceResponse,
     VideoCallParticipantsResponse,
+    SetPinNumberResponse,
+    AcceptedRules,
 } from "./chat";
 import type { BlobReference, StorageStatus } from "./data/data";
 import type { UpdateMarketMakerConfigArgs, UpdateMarketMakerConfigResponse } from "./marketMaker";
@@ -105,6 +107,8 @@ import type {
     SwapTokensResponse,
     TokenSwapStatusResponse,
     ApproveTransferResponse,
+    ClaimDailyChitResponse,
+    ChitUserBalance,
 } from "./user";
 import type {
     SearchDirectChatResponse,
@@ -160,10 +164,7 @@ import type {
     SiwePrepareLoginResponse,
     SiwsPrepareLoginResponse,
 } from "./identity";
-import type {
-    GenerateEmailVerificationCodeResponse,
-    SubmitEmailVerificationCodeResponse,
-} from "./email";
+import type { GenerateMagicLinkResponse } from "./email";
 import type {
     ApproveResponse,
     MarkDeployedResponse,
@@ -238,7 +239,6 @@ export type WorkerRequest =
     | CreateUserClient
     | Init
     | CurrentUser
-    | IdentityMigrationProgress
     | SetGroupInvite
     | SetCommunityInvite
     | SearchGroupChat
@@ -351,16 +351,17 @@ export type WorkerRequest =
     | GetAccessToken
     | GetLocalUserIndexForUser
     | UpdateBtcBalance
-    | SetPrincipalMigrationJobEnabled
-    | GenerateEmailVerificationsCode
-    | SubmitEmailVerificationsCode
+    | GenerateMagicLink
     | GetSignInWithEmailDelegation
     | SiwePrepareLogin
     | SiwsPrepareLogin
     | LoginWithWallet
     | GetDelegationWithWallet
     | SetVideoCallPresence
-    | VideoCallParticipants;
+    | VideoCallParticipants
+    | SetPinNumber
+    | ClaimDailyChit
+    | ChitLeaderboard;
 
 type VideoCallParticipants = {
     kind: "videoCallParticipants";
@@ -764,8 +765,7 @@ type SendMessage = {
     user: CreatedUser;
     mentioned: User[];
     event: EventWrapper<Message>;
-    rulesAccepted: number | undefined;
-    communityRulesAccepted: number | undefined;
+    acceptedRules: AcceptedRules | undefined;
     messageFilterFailed: bigint | undefined;
     pin: string | undefined;
     kind: "sendMessage";
@@ -982,10 +982,6 @@ type CurrentUser = {
     kind: "getCurrentUser";
 };
 
-type IdentityMigrationProgress = {
-    kind: "getIdentityMigrationProgress";
-};
-
 type MarkMessagesRead = {
     kind: "markMessagesRead";
     payload: MarkReadRequest;
@@ -1165,21 +1161,10 @@ type UpdateBtcBalance = {
     kind: "updateBtcBalance";
 };
 
-type SetPrincipalMigrationJobEnabled = {
-    enabled: boolean;
-    kind: "setPrincipalMigrationJobEnabled";
-};
-
-type GenerateEmailVerificationsCode = {
+type GenerateMagicLink = {
     email: string;
-    kind: "generateEmailVerificationCode";
-};
-
-type SubmitEmailVerificationsCode = {
-    email: string;
-    code: string;
     sessionKey: Uint8Array;
-    kind: "submitEmailVerificationCode";
+    kind: "generateMagicLink";
 };
 
 type GetSignInWithEmailDelegation = {
@@ -1357,12 +1342,14 @@ export type WorkerResponseInner =
     | PendingDeploymentResponse
     | JoinVideoCallResponse
     | UpdateBtcBalanceResponse
-    | GenerateEmailVerificationCodeResponse
-    | SubmitEmailVerificationCodeResponse
+    | GenerateMagicLinkResponse
     | SiwePrepareLoginResponse
     | SiwsPrepareLoginResponse
     | SetVideoCallPresenceResponse
-    | VideoCallParticipantsResponse;
+    | VideoCallParticipantsResponse
+    | SetPinNumberResponse
+    | ClaimDailyChitResponse
+    | ChitUserBalance[];
 
 export type WorkerResponse = Response<WorkerResponseInner>;
 
@@ -1646,6 +1633,20 @@ type CancelP2PSwap = {
     kind: "cancelP2PSwap";
 };
 
+type SetPinNumber = {
+    currentPin: string | undefined;
+    newPin: string | undefined;
+    kind: "setPinNumber";
+};
+
+type ClaimDailyChit = {
+    kind: "claimDailyChit";
+};
+
+type ChitLeaderboard = {
+    kind: "chitLeaderboard";
+};
+
 // prettier-ignore
 export type WorkerResult<T> = T extends PinMessage
     ? PinMessageResponse
@@ -1677,8 +1678,6 @@ export type WorkerResult<T> = T extends PinMessage
     ? CurrentUserResponse
     : T extends CreateUserClient
     ? void
-    : T extends IdentityMigrationProgress
-    ? [number, number] | undefined
     : T extends GetAllCachedUsers
     ? UserLookup
     : T extends LastOnline
@@ -1981,12 +1980,8 @@ export type WorkerResult<T> = T extends PinMessage
     ? string
     : T extends UpdateBtcBalance
     ? UpdateBtcBalanceResponse
-    : T extends SetPrincipalMigrationJobEnabled
-    ? void
-    : T extends GenerateEmailVerificationsCode
-    ? GenerateEmailVerificationCodeResponse
-    : T extends SubmitEmailVerificationsCode
-    ? SubmitEmailVerificationCodeResponse
+    : T extends GenerateMagicLink
+    ? GenerateMagicLinkResponse
     : T extends GetSignInWithEmailDelegation
     ? GetDelegationResponse
     : T extends SiwePrepareLogin
@@ -1997,4 +1992,10 @@ export type WorkerResult<T> = T extends PinMessage
     ? PrepareDelegationResponse
     : T extends GetDelegationWithWallet
     ? GetDelegationResponse
+    : T extends SetPinNumber
+    ? SetPinNumberResponse
+    : T extends ClaimDailyChit
+    ? ClaimDailyChitResponse
+    : T extends ChitLeaderboard
+    ? ChitUserBalance[]
     : never;

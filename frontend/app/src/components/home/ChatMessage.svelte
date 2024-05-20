@@ -1,7 +1,6 @@
 <svelte:options immutable />
 
 <script lang="ts">
-    import page from "page";
     import Link from "../Link.svelte";
     import { fade } from "svelte/transition";
     import {
@@ -17,7 +16,6 @@
         type ChatIdentifier,
         type ChatType,
         routeForMessage,
-        type PendingCryptocurrencyTransfer,
     } from "openchat-client";
     import EmojiPicker from "./EmojiPicker.svelte";
     import Avatar from "../Avatar.svelte";
@@ -42,7 +40,7 @@
     import { iconSize } from "../../stores/iconSize";
     import MessageReaction from "./MessageReaction.svelte";
     import ThreadSummary from "./ThreadSummary.svelte";
-    import { pathParams } from "../../routes";
+    import { pageReplace, pathParams } from "../../routes";
     import { canShareMessage } from "../../utils/share";
     import ChatMessageMenu from "./ChatMessageMenu.svelte";
     import { toastStore } from "../../stores/toast";
@@ -183,7 +181,7 @@
                 // if this message is the root of a thread, make sure that we close that thread when the message expires
                 if (percentageExpired >= 100 && msg.thread) {
                     filterRightPanelHistory((panel) => panel.kind !== "message_thread_panel");
-                    page.replace(removeQueryStringParam("open"));
+                    pageReplace(removeQueryStringParam("open"));
                 }
             });
         }
@@ -372,25 +370,6 @@
     $: canForward = client.canForward(msg.content);
     $: canTranslate = (client.getMessageText(msg.content) ?? "").length > 0;
 
-    function sendTip(ev: CustomEvent<PendingCryptocurrencyTransfer>) {
-        tipping = undefined;
-        const transfer = ev.detail;
-        const currentTip = (msg.tips[transfer.ledger] ?? {})[user.userId] ?? 0n;
-        client
-            .tipMessage(
-                messageContext,
-                msg.messageId,
-                transfer,
-                currentTip,
-                undefined, // TODO: PIN NUMBER
-            )
-            .then((resp) => {
-                if (resp.kind !== "success") {
-                    toastStore.showFailureToast(i18nKey("tip.failure"));
-                }
-            });
-    }
-
     function reportMessage() {
         showReport = true;
     }
@@ -403,7 +382,12 @@
 <svelte:window on:resize={recalculateMediaDimensions} />
 
 {#if tipping !== undefined}
-    <TipBuilder ledger={tipping} on:send={sendTip} on:close={() => (tipping = undefined)} {msg} />
+    <TipBuilder
+        ledger={tipping}
+        on:close={() => (tipping = undefined)}
+        {msg}
+        {messageContext}
+        {user} />
 {/if}
 
 {#if showEmojiPicker && canReact}

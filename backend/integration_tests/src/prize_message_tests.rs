@@ -3,7 +3,6 @@ use crate::rng::{random_message_id, random_string};
 use crate::utils::{now_millis, now_nanos, tick_many};
 use crate::{client, TestEnv};
 use candid::Principal;
-use ic_ledger_types::Tokens;
 use icrc_ledger_types::icrc1::account::Account;
 use std::ops::Deref;
 use std::time::Duration;
@@ -14,9 +13,8 @@ use types::{
 };
 use utils::time::{HOUR_IN_MS, MINUTE_IN_MS};
 
-#[test_case(true)]
-#[test_case(false)]
-fn prize_messages_can_be_claimed_successfully(v2: bool) {
+#[test]
+fn prize_messages_can_be_claimed_successfully() {
     let mut wrapper = ENV.deref().get();
     let TestEnv {
         env,
@@ -49,8 +47,7 @@ fn prize_messages_can_be_claimed_successfully(v2: bool) {
             thread_root_message_index: None,
             message_id,
             content: MessageContentInitial::Prize(PrizeContentInitial {
-                prizes: if v2 { Vec::new() } else { prizes.iter().copied().map(Tokens::from_e8s).collect() },
-                prizes_v2: if v2 { prizes.into_iter().map(u128::from).collect() } else { Vec::new() },
+                prizes_v2: prizes.into_iter().map(u128::from).collect(),
                 transfer: CryptoTransaction::Pending(PendingCryptoTransaction::ICRC1(icrc1::PendingCryptoTransaction {
                     ledger: canister_ids.icp_ledger,
                     token,
@@ -107,11 +104,9 @@ fn prize_messages_can_be_claimed_successfully(v2: bool) {
     }
 }
 
-#[test_case(false, true)]
-#[test_case(true, true)]
-#[test_case(false, false)]
-#[test_case(true, false)]
-fn unclaimed_prizes_get_refunded(delete_message: bool, v2: bool) {
+#[test_case(false)]
+#[test_case(true)]
+fn unclaimed_prizes_get_refunded(delete_message: bool) {
     let mut wrapper = ENV.deref().get();
     let TestEnv {
         env,
@@ -142,8 +137,7 @@ fn unclaimed_prizes_get_refunded(delete_message: bool, v2: bool) {
             thread_root_message_index: None,
             message_id,
             content: MessageContentInitial::Prize(PrizeContentInitial {
-                prizes: if v2 { Vec::new() } else { prizes.iter().copied().map(Tokens::from_e8s).collect() },
-                prizes_v2: if v2 { prizes.into_iter().map(u128::from).collect() } else { Vec::new() },
+                prizes_v2: prizes.into_iter().map(u128::from).collect(),
                 transfer: CryptoTransaction::Pending(PendingCryptoTransaction::ICRC1(icrc1::PendingCryptoTransaction {
                     ledger: canister_ids.icp_ledger,
                     token,
@@ -189,4 +183,81 @@ fn unclaimed_prizes_get_refunded(delete_message: bool, v2: bool) {
     let user1_balance_after_refund = client::icrc1::happy_path::balance_of(env, canister_ids.icp_ledger, user1.user_id);
 
     assert_eq!(user1_balance_after_refund, user1_balance_before_refund + 100000);
+}
+
+#[test]
+fn old_transactions_fixed_by_updating_created_date() {
+    let mut wrapper = ENV.deref().get();
+    let TestEnv {
+        env,
+        canister_ids,
+        controller,
+        ..
+    } = wrapper.env();
+
+    let user = client::register_diamond_user(env, canister_ids, *controller);
+    let group_id = client::user::happy_path::create_group(env, &user, random_string().as_str(), true, true);
+
+    let starting_balance = client::icrc1::happy_path::balance_of(env, canister_ids.icp_ledger, user.user_id);
+
+    // Send user1 some ICP
+    client::icrc1::happy_path::transfer(env, *controller, canister_ids.icp_ledger, user.user_id, 200_000);
+
+    let prizes = [100_000];
+    let token = Cryptocurrency::InternetComputer;
+    let fee = token.fee().unwrap();
+    let message_id = random_message_id();
+
+    let send_message_response = client::user::send_message_with_transfer_to_group(
+        env,
+        user.principal,
+        user.user_id.into(),
+        &user_canister::send_message_with_transfer_to_group::Args {
+            group_id,
+            thread_root_message_index: None,
+            message_id,
+            content: MessageContentInitial::Prize(PrizeContentInitial {
+                prizes_v2: prizes.into_iter().map(u128::from).collect(),
+                transfer: CryptoTransaction::Pending(PendingCryptoTransaction::ICRC1(icrc1::PendingCryptoTransaction {
+                    ledger: canister_ids.icp_ledger,
+                    token,
+                    amount: prizes.iter().sum::<u64>() as u128 + fee * prizes.len() as u128,
+                    to: Account::from(Principal::from(group_id)),
+                    fee,
+                    memo: None,
+                    created: now_nanos(env),
+                })),
+                end_date: now_millis(env) + HOUR_IN_MS,
+                caption: None,
+                diamond_only: false,
+            }),
+            sender_name: user.username(),
+            sender_display_name: None,
+            replies_to: None,
+            mentioned: Vec::new(),
+            block_level_markdown: false,
+            correlation_id: 0,
+            rules_accepted: None,
+            message_filter_failed: None,
+            pin: None,
+        },
+    );
+
+    assert!(matches!(
+        send_message_response,
+        user_canister::send_message_with_transfer_to_group::Response::Success(_)
+    ));
+    client::stop_canister(env, *controller, canister_ids.icp_ledger);
+    env.advance_time(Duration::from_millis(HOUR_IN_MS + 1));
+    tick_many(env, 3);
+    client::start_canister(env, *controller, canister_ids.icp_ledger);
+
+    let user_balance = client::icrc1::happy_path::balance_of(env, canister_ids.icp_ledger, user.user_id);
+    assert_eq!(user_balance, starting_balance + 80_000);
+
+    env.advance_time(Duration::from_millis(MINUTE_IN_MS + 1));
+    tick_many(env, 3);
+
+    let user_balance = client::icrc1::happy_path::balance_of(env, canister_ids.icp_ledger, user.user_id);
+    assert_eq!(user_balance, starting_balance + 180_000);
 }

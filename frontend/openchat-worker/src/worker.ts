@@ -54,11 +54,6 @@ async function getIdentity(identityCanister: string, icUrl: string): Promise<Ide
                 shouldGetIdentity = true;
                 break;
             }
-            case "legacy": {
-                const migratePrincipalResponse = await identityAgent.migrateLegacyPrincipal();
-                shouldGetIdentity = migratePrincipalResponse.kind === "success";
-                break;
-            }
             case "not_found": {
                 shouldCreateIdentity = true;
                 break;
@@ -225,10 +220,6 @@ self.addEventListener("message", (msg: MessageEvent<CorrelatedWorkerRequest>) =>
         switch (kind) {
             case "getCurrentUser":
                 streamReplies(payload, correlationId, agent.getCurrentUser());
-                break;
-
-            case "getIdentityMigrationProgress":
-                executeThenReply(payload, correlationId, agent.getIdentityMigrationProgress());
                 break;
 
             case "getDeletedGroupMessage":
@@ -597,8 +588,7 @@ self.addEventListener("message", (msg: MessageEvent<CorrelatedWorkerRequest>) =>
                         payload.user,
                         payload.mentioned,
                         payload.event,
-                        payload.rulesAccepted,
-                        payload.communityRulesAccepted,
+                        payload.acceptedRules,
                         payload.messageFilterFailed,
                         payload.pin,
                     ),
@@ -1623,31 +1613,11 @@ self.addEventListener("message", (msg: MessageEvent<CorrelatedWorkerRequest>) =>
                 executeThenReply(payload, correlationId, agent.updateBtcBalance(payload.userId));
                 break;
 
-            case "setPrincipalMigrationJobEnabled":
+            case "generateMagicLink":
                 executeThenReply(
                     payload,
                     correlationId,
-                    agent.setPrincipalMigrationJobEnabled(payload.enabled).then(() => undefined),
-                );
-                break;
-
-            case "generateEmailVerificationCode":
-                executeThenReply(
-                    payload,
-                    correlationId,
-                    agent.generateEmailVerificationCode(payload.email),
-                );
-                break;
-
-            case "submitEmailVerificationCode":
-                executeThenReply(
-                    payload,
-                    correlationId,
-                    agent.submitEmailVerificationCode(
-                        payload.email,
-                        payload.code,
-                        payload.sessionKey,
-                    ),
+                    agent.generateMagicLink(payload.email, payload.sessionKey),
                 );
                 break;
 
@@ -1695,6 +1665,22 @@ self.addEventListener("message", (msg: MessageEvent<CorrelatedWorkerRequest>) =>
                         payload.expiration,
                     ),
                 );
+                break;
+
+            case "setPinNumber":
+                executeThenReply(
+                    payload,
+                    correlationId,
+                    agent.setPinNumber(payload.currentPin, payload.newPin),
+                );
+                break;
+
+            case "claimDailyChit":
+                executeThenReply(payload, correlationId, agent.claimDailyChit());
+                break;
+
+            case "chitLeaderboard":
+                executeThenReply(payload, correlationId, agent.chitLeaderboard());
                 break;
 
             default:

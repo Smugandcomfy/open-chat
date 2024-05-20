@@ -9,6 +9,8 @@ use tracing::info;
 use types::{CyclesTopUp, Milliseconds, TimestampMillis, UserId};
 use utils::case_insensitive_hash_map::CaseInsensitiveHashMap;
 
+use super::user::ClaimDailyChitResult;
+
 #[derive(Serialize, Deserialize, Default)]
 #[serde(from = "UserMapTrimmed")]
 pub struct UserMap {
@@ -26,6 +28,7 @@ pub struct UserMap {
     suspected_bots: BTreeSet<UserId>,
     suspended_or_unsuspended_users: BTreeSet<(TimestampMillis, UserId)>,
     user_id_to_principal_backup: HashMap<UserId, Principal>,
+    deleted_users: HashMap<UserId, TimestampMillis>,
 }
 
 impl UserMap {
@@ -58,12 +61,11 @@ impl UserMap {
         now: TimestampMillis,
         referred_by: Option<UserId>,
         is_bot: bool,
-        migrated: bool,
     ) {
         self.username_to_user_id.insert(&username, user_id);
         self.principal_to_user_id.insert(principal, user_id);
 
-        let user = User::new(principal, user_id, username, now, referred_by, is_bot, migrated);
+        let user = User::new(principal, user_id, username, now, referred_by, is_bot);
         self.users.insert(user_id, user);
 
         if let Some(ref_by) = referred_by {
@@ -145,6 +147,21 @@ impl UserMap {
         self.username_to_user_id.get(username).and_then(|u| self.users.get(u))
     }
 
+    pub fn delete_user(&mut self, user_id: UserId, now: TimestampMillis) -> bool {
+        if let Some(user) = self.users.remove(&user_id) {
+            if self.principal_to_user_id.get(&user.principal) == Some(&user_id) {
+                self.principal_to_user_id.remove(&user.principal);
+            }
+            if self.username_to_user_id.get(&user.username) == Some(&user_id) {
+                self.username_to_user_id.remove(&user.username);
+            }
+            self.deleted_users.insert(user_id, now);
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn diamond_membership_details_mut(&mut self, user_id: &UserId) -> Option<&mut DiamondMembershipDetailsInternal> {
         self.users.get_mut(user_id).map(|u| &mut u.diamond_membership_details)
     }
@@ -171,6 +188,12 @@ impl UserMap {
         } else {
             false
         }
+    }
+
+    pub fn claim_daily_chit(&mut self, principal: &Principal, now: TimestampMillis) -> Option<ClaimDailyChitResult> {
+        self.principal_to_user_id
+            .get(principal)
+            .and_then(|u| self.users.get_mut(u).unwrap().claim_daily_chit(now))
     }
 
     pub fn suspend_user(
@@ -313,7 +336,6 @@ impl UserMap {
             user.date_created,
             None,
             false,
-            false,
         );
         self.update(user, date_created, false);
     }
@@ -333,6 +355,8 @@ struct UserMapTrimmed {
     suspected_bots: BTreeSet<UserId>,
     #[serde(default)]
     user_id_to_principal_backup: HashMap<UserId, Principal>,
+    #[serde(default)]
+    deleted_users: HashMap<UserId, TimestampMillis>,
 }
 
 impl From<UserMapTrimmed> for UserMap {
@@ -341,6 +365,7 @@ impl From<UserMapTrimmed> for UserMap {
             users: value.users,
             suspected_bots: value.suspected_bots,
             user_id_to_principal_backup: value.user_id_to_principal_backup,
+            deleted_users: value.deleted_users,
             ..Default::default()
         };
 
@@ -388,9 +413,9 @@ mod tests {
         let user_id2: UserId = Principal::from_slice(&[3, 2]).into();
         let user_id3: UserId = Principal::from_slice(&[3, 3]).into();
 
-        user_map.register(principal1, user_id1, username1.clone(), 1, None, false, false);
-        user_map.register(principal2, user_id2, username2.clone(), 2, None, false, false);
-        user_map.register(principal3, user_id3, username3.clone(), 3, None, false, false);
+        user_map.register(principal1, user_id1, username1.clone(), 1, None, false);
+        user_map.register(principal2, user_id2, username2.clone(), 2, None, false);
+        user_map.register(principal3, user_id3, username3.clone(), 3, None, false);
 
         let principal_to_user_id: Vec<_> = user_map
             .principal_to_user_id
@@ -427,11 +452,11 @@ mod tests {
 
         let user_id = Principal::from_slice(&[1, 1]).into();
 
-        user_map.register(principal, user_id, username1, 1, None, false, false);
+        user_map.register(principal, user_id, username1, 1, None, false);
 
         if let Some(original) = user_map.get_by_principal(&principal) {
             let mut updated = original.clone();
-            updated.username = username2.clone();
+            updated.username.clone_from(&username2);
 
             assert!(matches!(user_map.update(updated, 3, false), UpdateUserResult::Success));
 

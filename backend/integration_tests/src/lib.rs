@@ -8,12 +8,14 @@ use types::{CanisterId, Cycles, UserId};
 
 mod batched_summary_and_event_tests;
 mod change_group_role_tests;
+mod chit_tests;
 mod client;
 mod communities;
 mod cycles_dispenser_tests;
 mod delete_direct_chat_tests;
 mod delete_group_tests;
 mod delete_message_tests;
+mod delete_user_tests;
 mod diamond_membership_tests;
 mod disappearing_message_tests;
 mod edit_message_tests;

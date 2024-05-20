@@ -1,16 +1,15 @@
-use candid::{CandidType, Principal};
+use candid::CandidType;
 use serde::{Deserialize, Serialize};
-use types::Milliseconds;
+use types::UserId;
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct Args {
-    pub old_principal: Principal,
-    pub new_principal: Principal,
+    pub user_id: UserId,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub enum Response {
     Success,
-    SuccessPause(Milliseconds),
-    InternalError(String),
+    NotAuthorized,
+    UserNotFound,
 }

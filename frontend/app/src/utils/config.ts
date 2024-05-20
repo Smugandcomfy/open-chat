@@ -26,6 +26,7 @@ export const configKeys = {
     theme: "openchat_theme",
     scrollStrategy: "openchat_scrollstrategy",
     selectedAuthProvider: "openchat_selected_auth_provider",
+    selectedAuthEmail: "openchat_selected_auth_email",
     userCreated: "openchat_user_created",
     lowBandwidth: "openchat_lowbandwidth",
     renderPreviews: "openchat_renderpreviews",
@@ -43,4 +44,5 @@ export const configKeys = {
     communityInviteUsersSections: "openchat_community_invite_users_section",
     browseChannels: "openchat_browse_channels",
     useBlockLevelMarkdown: "openchat_block_markdown",
+    pinEnabled: "openchat_pin_enabled",
 };

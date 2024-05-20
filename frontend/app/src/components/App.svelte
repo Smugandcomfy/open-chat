@@ -7,7 +7,7 @@
     import { rtlStore } from "../stores/rtl";
     import { _, isLoading } from "svelte-i18n";
     import Router from "./Router.svelte";
-    import { notFound, pathParams, routeForScope } from "../routes";
+    import { notFound, pageReplace, pathParams, routeForScope } from "../routes";
     import SwitchDomain from "./SwitchDomain.svelte";
     import Upgrading from "./upgrading/Upgrading.svelte";
     import UpgradeBanner from "./UpgradeBanner.svelte";
@@ -103,7 +103,7 @@
     onMount(() => {
         redirectLandingPageLinksIfNecessary();
         if (client.captureReferralCode()) {
-            page.replace(removeQueryStringParam("ref"));
+            pageReplace(removeQueryStringParam("ref"))
         }
         calculateHeight();
 
@@ -129,7 +129,6 @@
             setDiamondMembershipFees,
             stakeNeuronForSubmittingProposals,
             updateMarketMakerConfig,
-            setPrincipalMigrationJobEnabled,
             pauseEventLoop: () => client.pauseEventLoop(),
             resumeEventLoop: () => client.resumeEventLoop(),
         };
@@ -332,16 +331,6 @@
                 console.log("Market maker config updated");
             } else {
                 console.log("Failed to update market maker config", resp);
-            }
-        });
-    }
-
-    function setPrincipalMigrationJobEnabled(enabled: boolean): void {
-        client.setPrincipalMigrationJobEnabled(enabled).then((resp) => {
-            if (resp) {
-                console.log("Principal migration job updated");
-            } else {
-                console.log("Failed to update principal migration job");
             }
         });
     }

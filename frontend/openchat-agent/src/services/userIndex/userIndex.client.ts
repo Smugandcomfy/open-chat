@@ -18,6 +18,8 @@ import type {
     ReferralLeaderboardResponse,
     SetDisplayNameResponse,
     DiamondMembershipFees,
+    ClaimDailyChitResponse,
+    ChitUserBalance,
 } from "openchat-shared";
 import { offline, Stream } from "openchat-shared";
 import { CandidService } from "../candidService";
@@ -35,6 +37,8 @@ import {
     userRegistrationCanisterResponse,
     setDisplayNameResponse,
     diamondMembershipFeesResponse,
+    claimDailyChitResponse,
+    chitLeaderboardResponse,
 } from "./mappers";
 import { apiOptional, apiToken } from "../common/chatMappers";
 import type { AgentConfig } from "../../config";
@@ -47,7 +51,7 @@ import {
     setUserDiamondStatusInCache,
     setUsernameInCache,
 } from "../../utils/userCache";
-import { identity, optional } from "../../utils/mapping";
+import { identity } from "../../utils/mapping";
 import {
     getCachedCurrentUser,
     setCachedCurrentUser,
@@ -84,10 +88,7 @@ export class UserIndexClient extends CandidService {
                         () => this.userIndexService.current_user({}),
                         currentUserResponse,
                     );
-                    if (
-                        liveUser.kind === "created_user" &&
-                        liveUser.principalUpdates === undefined
-                    ) {
+                    if (liveUser.kind === "created_user") {
                         setCachedCurrentUser(principal, liveUser);
                     }
                     resolve(liveUser, true);
@@ -96,17 +97,6 @@ export class UserIndexClient extends CandidService {
                 reject(err);
             }
         });
-    }
-
-    getIdentityMigrationProgress(): Promise<[number, number] | undefined> {
-        return this.handleQueryResponse(
-            () => this.userIndexService.current_user({}),
-            (res) => {
-                if ("Success" in res) {
-                    return optional(res.Success.principal_updates, identity);
-                }
-            },
-        );
     }
 
     setModerationFlags(flags: number): Promise<boolean> {
@@ -440,6 +430,20 @@ export class UserIndexClient extends CandidService {
                     user_id: userId !== undefined ? [Principal.fromText(userId)] : [],
                 }),
             (res) => res.Success.json,
+        );
+    }
+
+    claimDailyChit(): Promise<ClaimDailyChitResponse> {
+        return this.handleQueryResponse(
+            () => this.userIndexService.claim_daily_chit({}),
+            claimDailyChitResponse,
+        );
+    }
+
+    chitLeaderboard(): Promise<ChitUserBalance[]> {
+        return this.handleQueryResponse(
+            () => this.userIndexService.chit_leaderboard({}),
+            chitLeaderboardResponse,
         );
     }
 }

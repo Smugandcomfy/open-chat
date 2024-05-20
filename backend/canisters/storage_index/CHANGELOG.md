@@ -5,10 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [unreleased]
 
+## [[2.0.1175](https://github.com/open-chat-labs/open-chat/releases/tag/v2.0.1175-storage_index)] - 2024-05-16
+
 ### Changed
 
 - Seed rng with entropy before calling `raw_rand` to get randomness ([#5454](https://github.com/open-chat-labs/open-chat/pull/5454))
 - Expose both heap and stable memory in metrics ([#5718](https://github.com/open-chat-labs/open-chat/pull/5718))
+- Enable rolling storage for all users ([#5802](https://github.com/open-chat-labs/open-chat/pull/5802))
 
 ### Fixed
 
