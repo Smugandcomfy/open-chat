@@ -2420,6 +2420,7 @@ export function groupDetailsResponse(
             pinnedMessages: new Set(candid.Success.pinned_messages),
             rules: candid.Success.chat_rules,
             timestamp: candid.Success.timestamp,
+            someOldBollocks: "fromDB",
         };
     }
     throw new UnsupportedValueError("Unexpected ApiDeleteMessageResponse type received", candid);

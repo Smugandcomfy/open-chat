@@ -1278,6 +1278,7 @@ export type GroupChatDetails = {
     pinnedMessages: Set<number>;
     rules: VersionedRules;
     timestamp: bigint;
+    someOldBollocks: string;
 };
 
 /**

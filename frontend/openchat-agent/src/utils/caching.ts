@@ -3,6 +3,7 @@ import {
     type DBSchema,
     type IDBPCursorWithValue,
     type IDBPDatabase,
+    type IDBPTransaction,
     type StoreNames,
     type StoreValue,
 } from "idb";
@@ -49,6 +50,7 @@ import type { PrizeContent } from "openchat-shared";
 import type { P2PSwapContent } from "openchat-shared";
 
 const CACHE_VERSION = 103;
+const FIRST_MIGRATION = 103;
 const MAX_INDEX = 9999999999;
 
 export type Database = Promise<IDBPDatabase<ChatSchema>>;
@@ -146,55 +148,86 @@ export function createCacheKey(context: MessageContext, index: number): string {
     return `${messageContextToString(context)}_${padMessageIndex(index)}`;
 }
 
+type MigrationFunction<T> = (
+    db: IDBPDatabase<T>,
+    transaction: IDBPTransaction<T, StoreNames<T>[], "versionchange">,
+) => Promise<void>;
+
+const migrations: Record<number, MigrationFunction<ChatSchema>> = {
+    104: (db, trans) => Promise.resolve(),
+};
+
+async function migrate(
+    db: IDBPDatabase<ChatSchema>,
+    from: number,
+    to: number,
+    transaction: IDBPTransaction<ChatSchema, StoreNames<ChatSchema>[], "versionchange">,
+) {
+    for (let version = from + 1; version <= to; version++) {
+        if (migrations[version]) {
+            await migrations[version](db, transaction);
+        }
+    }
+}
+
+function nuke(db: IDBPDatabase<ChatSchema>) {
+    if (db.objectStoreNames.contains("chat_events")) {
+        db.deleteObjectStore("chat_events");
+    }
+    if (db.objectStoreNames.contains("thread_events")) {
+        db.deleteObjectStore("thread_events");
+    }
+    if (db.objectStoreNames.contains("expiredMessageRanges")) {
+        db.deleteObjectStore("expiredMessageRanges");
+    }
+    if (db.objectStoreNames.contains("chats")) {
+        db.deleteObjectStore("chats");
+    }
+    if (db.objectStoreNames.contains("group_details")) {
+        db.deleteObjectStore("group_details");
+    }
+    if (db.objectStoreNames.contains("community_details")) {
+        db.deleteObjectStore("community_details");
+    }
+    if (db.objectStoreNames.contains("failed_chat_messages")) {
+        db.deleteObjectStore("failed_chat_messages");
+    }
+    if (db.objectStoreNames.contains("failed_thread_messages")) {
+        db.deleteObjectStore("failed_thread_messages");
+    }
+    if (db.objectStoreNames.contains("cachePrimer")) {
+        db.deleteObjectStore("cachePrimer");
+    }
+    if (db.objectStoreNames.contains("currentUser")) {
+        db.deleteObjectStore("currentUser");
+    }
+    if (db.objectStoreNames.contains("localUserIndex")) {
+        db.deleteObjectStore("localUserIndex");
+    }
+    const chatEvents = db.createObjectStore("chat_events");
+    chatEvents.createIndex("messageIdx", "messageKey");
+    chatEvents.createIndex("expiresAt", "expiresAt");
+    const threadEvents = db.createObjectStore("thread_events");
+    threadEvents.createIndex("messageIdx", "messageKey");
+    db.createObjectStore("chats");
+    db.createObjectStore("group_details");
+    db.createObjectStore("community_details");
+    db.createObjectStore("failed_chat_messages");
+    db.createObjectStore("failed_thread_messages");
+    db.createObjectStore("cachePrimer");
+    db.createObjectStore("currentUser");
+    db.createObjectStore("localUserIndex");
+}
+
 export function openCache(principal: Principal): Database {
     return openDB<ChatSchema>(`openchat_db_${principal}`, CACHE_VERSION, {
-        upgrade(db, _oldVersion, _newVersion) {
-            if (db.objectStoreNames.contains("chat_events")) {
-                db.deleteObjectStore("chat_events");
+        upgrade(db, previousVersion, newVersion, transaction) {
+            // TODO what if there is no previous version
+            if (previousVersion < FIRST_MIGRATION || newVersion == null) {
+                nuke(db);
+            } else {
+                migrate(db, previousVersion, newVersion, transaction);
             }
-            if (db.objectStoreNames.contains("thread_events")) {
-                db.deleteObjectStore("thread_events");
-            }
-            if (db.objectStoreNames.contains("expiredMessageRanges")) {
-                db.deleteObjectStore("expiredMessageRanges");
-            }
-            if (db.objectStoreNames.contains("chats")) {
-                db.deleteObjectStore("chats");
-            }
-            if (db.objectStoreNames.contains("group_details")) {
-                db.deleteObjectStore("group_details");
-            }
-            if (db.objectStoreNames.contains("community_details")) {
-                db.deleteObjectStore("community_details");
-            }
-            if (db.objectStoreNames.contains("failed_chat_messages")) {
-                db.deleteObjectStore("failed_chat_messages");
-            }
-            if (db.objectStoreNames.contains("failed_thread_messages")) {
-                db.deleteObjectStore("failed_thread_messages");
-            }
-            if (db.objectStoreNames.contains("cachePrimer")) {
-                db.deleteObjectStore("cachePrimer");
-            }
-            if (db.objectStoreNames.contains("currentUser")) {
-                db.deleteObjectStore("currentUser");
-            }
-            if (db.objectStoreNames.contains("localUserIndex")) {
-                db.deleteObjectStore("localUserIndex");
-            }
-            const chatEvents = db.createObjectStore("chat_events");
-            chatEvents.createIndex("messageIdx", "messageKey");
-            chatEvents.createIndex("expiresAt", "expiresAt");
-            const threadEvents = db.createObjectStore("thread_events");
-            threadEvents.createIndex("messageIdx", "messageKey");
-            db.createObjectStore("chats");
-            db.createObjectStore("group_details");
-            db.createObjectStore("community_details");
-            db.createObjectStore("failed_chat_messages");
-            db.createObjectStore("failed_thread_messages");
-            db.createObjectStore("cachePrimer");
-            db.createObjectStore("currentUser");
-            db.createObjectStore("localUserIndex");
         },
     });
 }
